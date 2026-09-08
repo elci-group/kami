@@ -39,6 +39,9 @@ enum Commands {
         #[command(subcommand)]
         action: StateAction,
     },
+    /// Summarize the Padagonia graph export produced by the last
+    /// `state build` (§4, §16).
+    Graph,
 }
 
 #[derive(Subcommand)]
@@ -71,6 +74,7 @@ fn main() -> anyhow::Result<()> {
             StateAction::List => commands::state_list(&cli.path),
             StateAction::Show { id } => commands::state_show(&cli.path, *id),
         },
+        Commands::Graph => commands::graph(&cli.path),
     }?;
 
     let human = match &cli.command {
@@ -82,6 +86,7 @@ fn main() -> anyhow::Result<()> {
             StateAction::List => render_state_list,
             StateAction::Show { .. } => render_state_one,
         },
+        Commands::Graph => render_graph,
     };
 
     output::emit(cli.format, &result, human);
@@ -172,6 +177,36 @@ fn render_state_build(v: &serde_json::Value) -> String {
             if let Some(detail) = p["detail"].as_str() {
                 out.push_str(&format!(" — {detail}"));
             }
+        }
+    }
+    if v["padagonia"]["exported"].as_bool() == Some(true) {
+        out.push_str(&format!(
+            "\npadagonia graph: {}",
+            v["padagonia"]["path"].as_str().unwrap_or("?")
+        ));
+    } else if let Some(err) = v["padagonia"]["error"].as_str() {
+        out.push_str(&format!("\npadagonia graph export failed: {err}"));
+    }
+    out
+}
+
+fn render_graph(v: &serde_json::Value) -> String {
+    let mut out = format!(
+        "{}\nnodes: {}, edges: {}",
+        v["path"].as_str().unwrap_or("?"),
+        v["node_count"],
+        v["edge_count"]
+    );
+    if let Some(nodes) = v["nodes_by_label"].as_object() {
+        out.push_str("\nnodes by label:");
+        for (label, count) in nodes {
+            out.push_str(&format!("\n  {label}: {count}"));
+        }
+    }
+    if let Some(edges) = v["edges_by_label"].as_object() {
+        out.push_str("\nedges by label:");
+        for (label, count) in edges {
+            out.push_str(&format!("\n  {label}: {count}"));
         }
     }
     out

@@ -101,7 +101,40 @@ pub fn state_build(path: &Path, mission: Option<String>) -> Result<serde_json::V
     state.weaknesses = weaknesses;
     store.save_state(&state)?;
 
-    Ok(json!({ "state": state, "battery": battery_summary }))
+    // Additive (§4, §16): the flat JSON state above is already saved and
+    // is the authoritative record. A Padagonia graph export failing
+    // (e.g. a bad path) must not undo or block that — it's reported,
+    // not propagated as a command failure.
+    let graph_path = graph_path(&store);
+    let padagonia = match kami_padagonia::export_state(&graph_path, &state) {
+        Ok(()) => json!({ "exported": true, "path": graph_path.display().to_string() }),
+        Err(e) => json!({ "exported": false, "error": e.to_string() }),
+    };
+
+    Ok(json!({ "state": state, "battery": battery_summary, "padagonia": padagonia }))
+}
+
+fn graph_path(store: &Store) -> std::path::PathBuf {
+    store.root().join("graph.pad")
+}
+
+pub fn graph(path: &Path) -> Result<serde_json::Value> {
+    let store = Store::open(path)?;
+    let graph_path = graph_path(&store);
+    if !graph_path.is_file() {
+        bail!(
+            "no Padagonia graph at {}; run `kami state build` first",
+            graph_path.display()
+        );
+    }
+    let summary = kami_padagonia::summarize(&graph_path)?;
+    Ok(json!({
+        "path": graph_path.display().to_string(),
+        "node_count": summary.node_count,
+        "edge_count": summary.edge_count,
+        "nodes_by_label": summary.nodes_by_label,
+        "edges_by_label": summary.edges_by_label,
+    }))
 }
 
 pub fn state_list(path: &Path) -> Result<serde_json::Value> {

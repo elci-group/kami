@@ -17,11 +17,24 @@ ignore = []
 # of the last `cargo deny check licenses` run. A new dependency pulling in
 # something outside this list should fail the check rather than pass
 # silently — extend this list deliberately, not by copying a template.
+#
+# ISC/BSD-3-Clause/Zlib/CC0-1.0/MPL-2.0/CDLA-Permissive-2.0 were added when
+# `kami-padagonia` pulled in Padagonia's own dependency tree (its TLS/HTTP
+# server stack via `rustls`/`aws-lc-rs`, `webpki-roots`'s CDLA-licensed
+# root-cert data, `dirs`'s MPL-2.0 `option-ext`) — all standard permissive
+# licenses for an internal, non-redistributed tool; Padagonia's own
+# `deny.toml` allows the same set.
 allow = [
     "MIT",
     "Apache-2.0",
     "Apache-2.0 WITH LLVM-exception",
     "Unicode-3.0",
+    "ISC",
+    "BSD-3-Clause",
+    "Zlib",
+    "CC0-1.0",
+    "MPL-2.0",
+    "CDLA-Permissive-2.0",
 ]
 confidence-threshold = 0.8
 

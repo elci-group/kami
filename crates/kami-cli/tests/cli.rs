@@ -221,3 +221,41 @@ fn state_build_refuses_to_run_twice() {
         .failure()
         .stderr(predicate::str::contains("not implemented"));
 }
+
+#[test]
+fn state_build_exports_a_real_padagonia_graph_that_kami_graph_can_read_back() {
+    let dir = tempfile::tempdir().unwrap();
+
+    kami()
+        .args([
+            "--path",
+            dir.path().to_str().unwrap(),
+            "state",
+            "build",
+            "--mission",
+            "ship reliable software",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("padagonia graph:"));
+
+    assert!(dir.path().join(".kami").join("graph.pad").is_file());
+
+    kami()
+        .args(["--path", dir.path().to_str().unwrap(), "graph"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("ProjectState: 1"))
+        .stdout(predicate::str::contains("Mission: 1"))
+        .stdout(predicate::str::contains("has_mission: 1"));
+}
+
+#[test]
+fn graph_without_a_prior_state_build_fails_clearly() {
+    let dir = tempfile::tempdir().unwrap();
+    kami()
+        .args(["--path", dir.path().to_str().unwrap(), "graph"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("kami state build"));
+}
