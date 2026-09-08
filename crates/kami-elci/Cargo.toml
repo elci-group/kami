@@ -1,0 +1,15 @@
+[package]
+name = "kami-elci"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+which.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
