@@ -180,16 +180,28 @@ fn render_state_build(v: &serde_json::Value) -> String {
 fn render_state_one(v: &serde_json::Value) -> String {
     let s = &v["state"];
     let mission = s["mission"]["statement"].as_str().unwrap_or("(none)");
-    format!(
-        "{} ({})\nproject_root: {}\nmission: {}\nstrengths: {}, weaknesses: {}, constraints: {}, capabilities: {}\nevidence: {}",
+    let mut out = format!(
+        "{} ({})\nproject_root: {}\nmission: {}\nconstraints: {}, capabilities: {}, evidence: {}",
         s["id"].as_str().unwrap_or("?"),
         s["kind"].as_str().unwrap_or("?"),
         s["project_root"].as_str().unwrap_or("?"),
         mission,
-        s["strengths"].as_array().map(|a| a.len()).unwrap_or(0),
-        s["weaknesses"].as_array().map(|a| a.len()).unwrap_or(0),
         s["constraints"].as_array().map(|a| a.len()).unwrap_or(0),
         s["capabilities"].as_array().map(|a| a.len()).unwrap_or(0),
         s["evidence_ids"].as_array().map(|a| a.len()).unwrap_or(0),
-    )
+    );
+    render_findings_list(&mut out, "strengths", &s["strengths"]);
+    render_findings_list(&mut out, "weaknesses", &s["weaknesses"]);
+    out
+}
+
+fn render_findings_list(out: &mut String, label: &str, findings: &serde_json::Value) {
+    let items = findings.as_array().map(Vec::as_slice).unwrap_or(&[]);
+    out.push_str(&format!("\n{label} ({}):", items.len()));
+    for f in items {
+        out.push_str(&format!(
+            "\n  - {}",
+            f["description"].as_str().unwrap_or("?")
+        ));
+    }
 }

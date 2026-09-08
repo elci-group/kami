@@ -139,6 +139,74 @@ fn state_build_folds_first_loop_battery_evidence_into_the_state() {
 }
 
 #[test]
+fn state_build_extracts_typed_findings_from_real_battery_evidence() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join("Cargo.toml"),
+        "[package]\nname = \"fixture\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[dependencies]\nanyhow = \"1\"\n",
+    )
+    .unwrap();
+    std::fs::create_dir(dir.path().join("src")).unwrap();
+    std::fs::write(
+        dir.path().join("src").join("main.rs"),
+        "fn main() { let _ = anyhow::anyhow!(\"fixture\"); }\n",
+    )
+    .unwrap();
+    let lockfile = std::process::Command::new("cargo")
+        .args(["generate-lockfile"])
+        .current_dir(dir.path())
+        .env("CARGO_NET_OFFLINE", "true")
+        .status()
+        .unwrap();
+    assert!(lockfile.success());
+
+    let output = kami()
+        .args([
+            "--path",
+            dir.path().to_str().unwrap(),
+            "--format",
+            "json",
+            "state",
+            "build",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let value: serde_json::Value = serde_json::from_slice(&output).unwrap();
+
+    // Amber ran successfully on a project with one real dependency, so it
+    // must have produced exactly one typed record (strength or weakness,
+    // depending on real CVE data — not asserted which, since that can
+    // change) tagged with the "amber:" id prefix this crate's extractor
+    // uses, and every such record must carry a real evidence id.
+    let battery = value["battery"].as_array().unwrap();
+    let amber_pass = battery.iter().find(|p| p["tool"] == "amber").unwrap();
+    assert_eq!(
+        amber_pass["outcome"], "evidence",
+        "amber should have produced evidence for a project with a real dependency"
+    );
+
+    let strengths = value["state"]["strengths"].as_array().unwrap();
+    let weaknesses = value["state"]["weaknesses"].as_array().unwrap();
+    let amber_records: Vec<&serde_json::Value> = strengths
+        .iter()
+        .chain(weaknesses.iter())
+        .filter(|f| f["id"].as_str().is_some_and(|id| id.starts_with("amber:")))
+        .collect();
+    assert_eq!(
+        amber_records.len(),
+        1,
+        "expected exactly one amber-derived finding, got: {amber_records:?}"
+    );
+    assert!(!amber_records[0]["evidence_ids"]
+        .as_array()
+        .unwrap()
+        .is_empty());
+}
+
+#[test]
 fn state_build_refuses_to_run_twice() {
     let dir = tempfile::tempdir().unwrap();
 

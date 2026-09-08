@@ -365,6 +365,7 @@ dependencies = [
  "kami-core",
  "kami-elci",
  "kami-evidence",
+ "kami-findings",
  "kami-sizing",
  "predicates",
  "serde_json",
@@ -401,6 +402,14 @@ dependencies = [
  "serde",
  "serde_json",
  "tempfile",
+]
+
+[[package]]
+name = "kami-findings"
+version = "0.1.0"
+dependencies = [
+ "kami-core",
+ "serde_json",
 ]
 
 [[package]]

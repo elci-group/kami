@@ -66,11 +66,17 @@ pub fn state_build(path: &Path, mission: Option<String>) -> Result<serde_json::V
     store.record_evidence(&ev)?;
 
     let mut evidence_ids = vec![ev.id.clone()];
+    let mut strengths = Vec::new();
+    let mut weaknesses = Vec::new();
     let mut battery_summary = Vec::new();
     for pass in kami_battery::run(path) {
+        let tool = pass.tool;
         let (outcome_label, detail, evidence_id) = match pass.outcome {
             PassOutcome::Evidence(ev) => {
                 let id = ev.id.clone();
+                let found = kami_findings::extract(tool, &id, &ev.data);
+                strengths.extend(found.strengths);
+                weaknesses.extend(found.weaknesses);
                 store.record_evidence(&ev)?;
                 evidence_ids.push(id.clone());
                 ("evidence", None, Some(id))
@@ -80,7 +86,7 @@ pub fn state_build(path: &Path, mission: Option<String>) -> Result<serde_json::V
             PassOutcome::InvocationFailed(detail) => ("invocation_failed", Some(detail), None),
         };
         battery_summary.push(json!({
-            "tool": pass.tool,
+            "tool": tool,
             "outcome": outcome_label,
             "detail": detail,
             "evidence_id": evidence_id,
@@ -91,6 +97,8 @@ pub fn state_build(path: &Path, mission: Option<String>) -> Result<serde_json::V
     state.mission = mission.map(|statement| Mission { statement });
     state.size = Some(sizing.size);
     state.evidence_ids = evidence_ids;
+    state.strengths = strengths;
+    state.weaknesses = weaknesses;
     store.save_state(&state)?;
 
     Ok(json!({ "state": state, "battery": battery_summary }))
