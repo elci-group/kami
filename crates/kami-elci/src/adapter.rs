@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use serde_json::Value;
 
 pub const INVOKE_UNAVAILABLE: &str = "CAPABILITY_UNAVAILABLE";
@@ -31,8 +33,20 @@ pub trait ElciAdapter {
     fn version(&self) -> Option<String>;
     fn health(&self) -> AdapterHealth;
 
-    /// Invoke the adapter's underlying tool. Returns `Err` describing
+    /// Invoke the adapter's underlying tool with its working directory set
+    /// to `dir`. Some siblings (e.g. Fract's `index`) take no explicit
+    /// path argument and always analyse the process's cwd — setting it
+    /// explicitly is the only correct way to point them at a target
+    /// project, so every caller goes through this rather than relying on
+    /// Kami's own ambient cwd. Returns `Err` describing
     /// `CAPABILITY_UNAVAILABLE` when the tool isn't a directly invokable
     /// binary, or isn't detected at all.
-    fn invoke(&self, args: &[String]) -> anyhow::Result<Value>;
+    fn invoke_in(&self, dir: &Path, args: &[String]) -> anyhow::Result<Value>;
+
+    /// Convenience for callers that don't care about the sibling's
+    /// working directory (it takes an explicit path argument, or doesn't
+    /// need one at all).
+    fn invoke(&self, args: &[String]) -> anyhow::Result<Value> {
+        self.invoke_in(Path::new("."), args)
+    }
 }

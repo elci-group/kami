@@ -1,6 +1,7 @@
 use std::path::Path;
 
 use anyhow::{bail, Result};
+use kami_battery::PassOutcome;
 use kami_core::{Evidence, Mission, ProjectState, StateId};
 use kami_elci::component_registry;
 use kami_evidence::Store;
@@ -64,13 +65,35 @@ pub fn state_build(path: &Path, mission: Option<String>) -> Result<serde_json::V
     let (ev, sizing) = sizing_evidence(path)?;
     store.record_evidence(&ev)?;
 
+    let mut evidence_ids = vec![ev.id.clone()];
+    let mut battery_summary = Vec::new();
+    for pass in kami_battery::run(path) {
+        let (outcome_label, detail, evidence_id) = match pass.outcome {
+            PassOutcome::Evidence(ev) => {
+                let id = ev.id.clone();
+                store.record_evidence(&ev)?;
+                evidence_ids.push(id.clone());
+                ("evidence", None, Some(id))
+            }
+            PassOutcome::Unavailable(detail) => ("unavailable", Some(detail), None),
+            PassOutcome::NotApplicable(detail) => ("not_applicable", Some(detail), None),
+            PassOutcome::InvocationFailed(detail) => ("invocation_failed", Some(detail), None),
+        };
+        battery_summary.push(json!({
+            "tool": pass.tool,
+            "outcome": outcome_label,
+            "detail": detail,
+            "evidence_id": evidence_id,
+        }));
+    }
+
     let mut state = ProjectState::genesis(path.display().to_string());
     state.mission = mission.map(|statement| Mission { statement });
     state.size = Some(sizing.size);
-    state.evidence_ids = vec![ev.id.clone()];
+    state.evidence_ids = evidence_ids;
     store.save_state(&state)?;
 
-    Ok(json!({ "state": state }))
+    Ok(json!({ "state": state, "battery": battery_summary }))
 }
 
 pub fn state_list(path: &Path) -> Result<serde_json::Value> {

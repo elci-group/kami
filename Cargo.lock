@@ -343,12 +343,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "kami-battery"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "kami-core",
+ "kami-elci",
+ "serde_json",
+ "tempfile",
+ "which",
+]
+
+[[package]]
 name = "kami-cli"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "assert_cmd",
  "clap",
+ "kami-battery",
  "kami-core",
  "kami-elci",
  "kami-evidence",

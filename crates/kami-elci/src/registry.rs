@@ -257,7 +257,7 @@ impl ElciAdapter for SiblingAdapter {
         }
     }
 
-    fn invoke(&self, args: &[String]) -> anyhow::Result<Value> {
+    fn invoke_in(&self, dir: &Path, args: &[String]) -> anyhow::Result<Value> {
         if self.descriptor.kind == AdapterKind::Library {
             bail!(
                 "{INVOKE_UNAVAILABLE}: {} is a library-kind ELCI component with no CLI adapter wired up in this build",
@@ -270,10 +270,11 @@ impl ElciAdapter for SiblingAdapter {
                 self.descriptor.name
             )
         })?;
-        let output = Command::new(&path).args(args).output()?;
+        let output = Command::new(&path).args(args).current_dir(dir).output()?;
         Ok(json!({
             "adapter": self.descriptor.name,
             "binary": path.display().to_string(),
+            "dir": dir.display().to_string(),
             "args": args,
             "exit_code": output.status.code(),
             "stdout": String::from_utf8_lossy(&output.stdout),

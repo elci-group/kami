@@ -78,7 +78,7 @@ fn main() -> anyhow::Result<()> {
         Commands::Inspect => render_inspect,
         Commands::Status => render_status,
         Commands::State { action } => match action {
-            StateAction::Build { .. } => render_state_one,
+            StateAction::Build { .. } => render_state_build,
             StateAction::List => render_state_list,
             StateAction::Show { .. } => render_state_one,
         },
@@ -149,6 +149,32 @@ fn render_state_list(v: &serde_json::Value) -> String {
         .filter_map(|s| s.as_str())
         .collect();
     format!("states: {}", ids.join(", "))
+}
+
+fn render_state_build(v: &serde_json::Value) -> String {
+    let mut out = render_state_one(v);
+    if let Some(passes) = v["battery"].as_array() {
+        out.push_str("\nfirst-loop battery (§12):");
+        for p in passes {
+            let outcome = p["outcome"].as_str().unwrap_or("?");
+            let mark = match outcome {
+                "evidence" => "EVIDENCE",
+                "unavailable" => "UNAVAILABLE",
+                "not_applicable" => "NOT_APPLICABLE",
+                "invocation_failed" => "INVOCATION_FAILED",
+                other => other,
+            };
+            out.push_str(&format!(
+                "\n  {:<10} [{}]",
+                p["tool"].as_str().unwrap_or("?"),
+                mark
+            ));
+            if let Some(detail) = p["detail"].as_str() {
+                out.push_str(&format!(" — {detail}"));
+            }
+        }
+    }
+    out
 }
 
 fn render_state_one(v: &serde_json::Value) -> String {

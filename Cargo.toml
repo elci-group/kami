@@ -6,6 +6,7 @@ members = [
     "crates/kami-evidence",
     "crates/kami-elci",
     "crates/kami-sizing",
+    "crates/kami-battery",
 ]
 
 [workspace.package]

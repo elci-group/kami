@@ -14,6 +14,7 @@ kami-core = { path = "../kami-core" }
 kami-evidence = { path = "../kami-evidence" }
 kami-elci = { path = "../kami-elci" }
 kami-sizing = { path = "../kami-sizing" }
+kami-battery = { path = "../kami-battery" }
 clap.workspace = true
 serde_json.workspace = true
 anyhow.workspace = true
