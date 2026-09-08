@@ -44,9 +44,12 @@ command = "cargo test"
 required = true
 
 [staging]
-mode = "all"    # "cluster" (default, only observed changes), "pattern",
-                # or "all" (git add -A; warns at startup, aborts on
-                # secret-pattern files — avoid in shared checkouts)
+# "cluster" (fs-watch observed changes only) requires a long-running daemon
+# alongside every edit; this session instead runs `kaptaind` in short
+# foreground bursts after each batch of changes, so "all" (git add -A) is
+# used deliberately here — this is a single-developer, non-shared checkout,
+# and kaptaind still aborts on secret-pattern files.
+mode = "all"
 # include = ["src/**"] # only used in "pattern" mode
 # exclude = ["*.log", ".env*"]
 
