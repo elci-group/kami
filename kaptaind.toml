@@ -36,6 +36,14 @@ patch = 0.0
 enabled = true
 branch = "master"
 
+# kaptaind refuses to push a branch named main/master by default
+# ("push to protected branch 'master' is disabled by configuration").
+# Overriding that here to an empty list is the same override the
+# sibling `padagonia`/`ingauge` projects use, and is exactly what
+# pushing this branch to origin requires.
+[push.safety]
+protect_branches = []
+
 [capabilities]
 network_push = true
 
