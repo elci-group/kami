@@ -53,3 +53,5 @@ This is the first-loop baseline only. Per the directive's own doctrine (§12: "t
 ```
 
 Override which directory `kami-elci` looks in for sibling projects with `KAMI_ELCI_ROOT` (defaults to the parent of the current working directory).
+
+<!-- kaptaind push test -->
