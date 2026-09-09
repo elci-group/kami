@@ -2,6 +2,7 @@ use std::path::Path;
 
 use anyhow::{bail, Result};
 use kami_battery::PassOutcome;
+use kami_capabilities::DiscoveryOutcome;
 use kami_compliance::PassOutcome as CompliancePassOutcome;
 use kami_core::{Evidence, Mission, ProjectState, StateId};
 use kami_elci::component_registry;
@@ -124,6 +125,30 @@ pub fn state_build(path: &Path, mission: Option<String>) -> Result<serde_json::V
         }));
     }
 
+    // Capability discovery (§4) — deterministic, from the project's own
+    // Cargo target list, not through the ELCI adapter registry (`cargo`
+    // is the ambient toolchain, not an ELCI sibling).
+    let discovery = kami_capabilities::discover(path);
+    let (capabilities, capabilities_summary) = match discovery.outcome {
+        DiscoveryOutcome::Evidence(ev) => {
+            let id = ev.id.clone();
+            store.record_evidence(&ev)?;
+            evidence_ids.push(id.clone());
+            (
+                discovery.capabilities,
+                json!({ "tool": "cargo-metadata", "outcome": "evidence", "detail": null, "evidence_id": id }),
+            )
+        }
+        DiscoveryOutcome::NotApplicable(detail) => (
+            Vec::new(),
+            json!({ "tool": "cargo-metadata", "outcome": "not_applicable", "detail": detail, "evidence_id": null }),
+        ),
+        DiscoveryOutcome::InvocationFailed(detail) => (
+            Vec::new(),
+            json!({ "tool": "cargo-metadata", "outcome": "invocation_failed", "detail": detail, "evidence_id": null }),
+        ),
+    };
+
     let mut state = ProjectState::genesis(path.display().to_string());
     state.mission = mission.map(|statement| Mission { statement });
     state.size = Some(sizing.size);
@@ -131,6 +156,7 @@ pub fn state_build(path: &Path, mission: Option<String>) -> Result<serde_json::V
     state.strengths = strengths;
     state.weaknesses = weaknesses;
     state.constraints = constraints;
+    state.capabilities = capabilities;
     store.save_state(&state)?;
 
     // Additive (§4, §16): the flat JSON state above is already saved and
@@ -147,6 +173,7 @@ pub fn state_build(path: &Path, mission: Option<String>) -> Result<serde_json::V
         "state": state,
         "battery": battery_summary,
         "compliance": compliance_summary,
+        "capabilities": capabilities_summary,
         "padagonia": padagonia,
     }))
 }

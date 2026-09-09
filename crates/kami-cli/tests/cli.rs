@@ -298,6 +298,50 @@ fn state_build_runs_compliance_modelling_and_records_a_licensing_constraint() {
 }
 
 #[test]
+fn state_build_discovers_bin_and_lib_capabilities_from_cargo_metadata() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join("Cargo.toml"),
+        "[package]\nname = \"fixture\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[lib]\nname = \"fixture\"\n\n[[bin]]\nname = \"fixture-cli\"\npath = \"src/main.rs\"\n",
+    )
+    .unwrap();
+    std::fs::create_dir(dir.path().join("src")).unwrap();
+    std::fs::write(dir.path().join("src").join("lib.rs"), "").unwrap();
+    std::fs::write(dir.path().join("src").join("main.rs"), "fn main() {}\n").unwrap();
+
+    let output = kami()
+        .args([
+            "--path",
+            dir.path().to_str().unwrap(),
+            "--format",
+            "json",
+            "state",
+            "build",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let value: serde_json::Value = serde_json::from_slice(&output).unwrap();
+
+    assert_eq!(value["capabilities"]["outcome"], "evidence");
+    let caps = value["state"]["capabilities"].as_array().unwrap();
+    let names: Vec<&str> = caps.iter().filter_map(|c| c["name"].as_str()).collect();
+    assert!(
+        names.contains(&"fixture"),
+        "expected the lib capability, got {names:?}"
+    );
+    assert!(
+        names.contains(&"fixture-cli"),
+        "expected the bin capability, got {names:?}"
+    );
+    for c in caps {
+        assert!(!c["evidence_ids"].as_array().unwrap().is_empty());
+    }
+}
+
+#[test]
 fn graph_without_a_prior_state_build_fails_clearly() {
     let dir = tempfile::tempdir().unwrap();
     kami()

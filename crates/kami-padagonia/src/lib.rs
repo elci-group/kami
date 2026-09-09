@@ -159,7 +159,7 @@ pub fn write_state(store: &mut Store, state: &ProjectState) -> NodeId {
                 ("description", Scalar::String(cap.description.clone())),
             ],
             None,
-            provenance(Vec::new()),
+            provenance(cap.evidence_ids.clone()),
         );
         store.add_edge(
             project_node,
@@ -226,7 +226,9 @@ pub fn summarize(path: &Path) -> Result<GraphSummary> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use kami_core::{Constraint, ConstraintKind, Mission, ProjectState, Strength, Weakness};
+    use kami_core::{
+        Capability, Constraint, ConstraintKind, Mission, ProjectState, Strength, Weakness,
+    };
 
     fn sample_state() -> ProjectState {
         let mut state = ProjectState::genesis("/tmp/example");
@@ -250,6 +252,12 @@ mod tests {
             source: "lwoodz".to_string(),
             evidence_ids: vec!["ev-3".to_string()],
         });
+        state.capabilities.push(Capability {
+            id: "cargo:kami-cli:kami".to_string(),
+            name: "kami".to_string(),
+            description: "kami-cli provides a bin target: kami".to_string(),
+            evidence_ids: vec!["ev-4".to_string()],
+        });
         state
     }
 
@@ -262,19 +270,21 @@ mod tests {
         export_state(&path, &state).unwrap();
         let summary = summarize(&path).unwrap();
 
-        // 1 ProjectState + 1 Mission + 1 Strength + 1 Weakness + 1 Constraint.
-        assert_eq!(summary.node_count, 5);
-        // has_mission + exhibits(strength) + exhibits(weakness) + has_constraint.
-        assert_eq!(summary.edge_count, 4);
+        // 1 ProjectState + 1 Mission + 1 Strength + 1 Weakness + 1 Constraint + 1 Capability.
+        assert_eq!(summary.node_count, 6);
+        // has_mission + exhibits(strength) + exhibits(weakness) + has_constraint + has_capability.
+        assert_eq!(summary.edge_count, 5);
 
         assert_eq!(summary.nodes_by_label.get(NODE_PROJECT_STATE), Some(&1));
         assert_eq!(summary.nodes_by_label.get(NODE_MISSION), Some(&1));
         assert_eq!(summary.nodes_by_label.get(NODE_STRENGTH), Some(&1));
         assert_eq!(summary.nodes_by_label.get(NODE_WEAKNESS), Some(&1));
         assert_eq!(summary.nodes_by_label.get(NODE_CONSTRAINT), Some(&1));
+        assert_eq!(summary.nodes_by_label.get(NODE_CAPABILITY), Some(&1));
         assert_eq!(summary.edges_by_label.get(REL_HAS_MISSION), Some(&1));
         assert_eq!(summary.edges_by_label.get(REL_EXHIBITS), Some(&2));
         assert_eq!(summary.edges_by_label.get(REL_HAS_CONSTRAINT), Some(&1));
+        assert_eq!(summary.edges_by_label.get(REL_HAS_CAPABILITY), Some(&1));
     }
 
     #[test]

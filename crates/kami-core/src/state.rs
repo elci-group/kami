@@ -100,6 +100,9 @@ pub struct Capability {
     pub id: String,
     pub name: String,
     pub description: String,
+    /// Traceable to the evidence that established this capability (§25).
+    #[serde(default)]
+    pub evidence_ids: Vec<String>,
 }
 
 /// §23/§26: one immutable node in the project's state-transition chain.

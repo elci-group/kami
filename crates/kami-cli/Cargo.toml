@@ -18,6 +18,7 @@ kami-battery = { path = "../kami-battery" }
 kami-findings = { path = "../kami-findings" }
 kami-padagonia = { path = "../kami-padagonia" }
 kami-compliance = { path = "../kami-compliance" }
+kami-capabilities = { path = "../kami-capabilities" }
 clap.workspace = true
 serde_json.workspace = true
 anyhow.workspace = true

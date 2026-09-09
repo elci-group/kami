@@ -1232,6 +1232,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "kami-capabilities"
+version = "0.1.0"
+dependencies = [
+ "kami-core",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
 name = "kami-cli"
 version = "0.1.0"
 dependencies = [
@@ -1239,6 +1248,7 @@ dependencies = [
  "assert_cmd",
  "clap",
  "kami-battery",
+ "kami-capabilities",
  "kami-compliance",
  "kami-core",
  "kami-elci",

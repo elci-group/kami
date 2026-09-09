@@ -160,6 +160,8 @@ fn render_state_build(v: &serde_json::Value) -> String {
     let mut out = render_state_one(v);
     render_pass_list(&mut out, "first-loop battery (§12)", &v["battery"]);
     render_pass_list(&mut out, "compliance modelling (§13)", &v["compliance"]);
+    let capability_pass = serde_json::Value::Array(vec![v["capabilities"].clone()]);
+    render_pass_list(&mut out, "capability discovery (§4)", &capability_pass);
     if v["padagonia"]["exported"].as_bool() == Some(true) {
         out.push_str(&format!(
             "\npadagonia graph: {}",
@@ -222,17 +224,17 @@ fn render_state_one(v: &serde_json::Value) -> String {
     let s = &v["state"];
     let mission = s["mission"]["statement"].as_str().unwrap_or("(none)");
     let mut out = format!(
-        "{} ({})\nproject_root: {}\nmission: {}\ncapabilities: {}, evidence: {}",
+        "{} ({})\nproject_root: {}\nmission: {}\nevidence: {}",
         s["id"].as_str().unwrap_or("?"),
         s["kind"].as_str().unwrap_or("?"),
         s["project_root"].as_str().unwrap_or("?"),
         mission,
-        s["capabilities"].as_array().map(|a| a.len()).unwrap_or(0),
         s["evidence_ids"].as_array().map(|a| a.len()).unwrap_or(0),
     );
     render_findings_list(&mut out, "strengths", &s["strengths"]);
     render_findings_list(&mut out, "weaknesses", &s["weaknesses"]);
     render_findings_list(&mut out, "constraints", &s["constraints"]);
+    render_findings_list(&mut out, "capabilities", &s["capabilities"]);
     out
 }
 
