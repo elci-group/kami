@@ -2,6 +2,7 @@ use std::path::Path;
 
 use anyhow::{bail, Result};
 use kami_battery::PassOutcome;
+use kami_compliance::PassOutcome as CompliancePassOutcome;
 use kami_core::{Evidence, Mission, ProjectState, StateId};
 use kami_elci::component_registry;
 use kami_evidence::Store;
@@ -93,12 +94,43 @@ pub fn state_build(path: &Path, mission: Option<String>) -> Result<serde_json::V
         }));
     }
 
+    // Recursive compliance modelling (§13) — a separate pass from the
+    // §12 battery above, per the directive's own pipeline ordering.
+    let mut compliance_summary = Vec::new();
+    let mut constraints = Vec::new();
+    for pass in kami_compliance::run(path) {
+        let tool = pass.tool;
+        let (outcome_label, detail, evidence_id) = match pass.outcome {
+            CompliancePassOutcome::Evidence(ev) => {
+                let id = ev.id.clone();
+                let found = kami_findings::extract(tool, &id, &ev.data);
+                strengths.extend(found.strengths);
+                weaknesses.extend(found.weaknesses);
+                constraints.extend(found.constraints);
+                store.record_evidence(&ev)?;
+                evidence_ids.push(id.clone());
+                ("evidence", None, Some(id))
+            }
+            CompliancePassOutcome::Unavailable(detail) => ("unavailable", Some(detail), None),
+            CompliancePassOutcome::InvocationFailed(detail) => {
+                ("invocation_failed", Some(detail), None)
+            }
+        };
+        compliance_summary.push(json!({
+            "tool": tool,
+            "outcome": outcome_label,
+            "detail": detail,
+            "evidence_id": evidence_id,
+        }));
+    }
+
     let mut state = ProjectState::genesis(path.display().to_string());
     state.mission = mission.map(|statement| Mission { statement });
     state.size = Some(sizing.size);
     state.evidence_ids = evidence_ids;
     state.strengths = strengths;
     state.weaknesses = weaknesses;
+    state.constraints = constraints;
     store.save_state(&state)?;
 
     // Additive (§4, §16): the flat JSON state above is already saved and
@@ -111,7 +143,12 @@ pub fn state_build(path: &Path, mission: Option<String>) -> Result<serde_json::V
         Err(e) => json!({ "exported": false, "error": e.to_string() }),
     };
 
-    Ok(json!({ "state": state, "battery": battery_summary, "padagonia": padagonia }))
+    Ok(json!({
+        "state": state,
+        "battery": battery_summary,
+        "compliance": compliance_summary,
+        "padagonia": padagonia,
+    }))
 }
 
 fn graph_path(store: &Store) -> std::path::PathBuf {

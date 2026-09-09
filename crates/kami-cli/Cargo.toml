@@ -17,6 +17,7 @@ kami-sizing = { path = "../kami-sizing" }
 kami-battery = { path = "../kami-battery" }
 kami-findings = { path = "../kami-findings" }
 kami-padagonia = { path = "../kami-padagonia" }
+kami-compliance = { path = "../kami-compliance" }
 clap.workspace = true
 serde_json.workspace = true
 anyhow.workspace = true
@@ -25,3 +26,4 @@ anyhow.workspace = true
 tempfile.workspace = true
 assert_cmd = "2"
 predicates = "3"
+which.workspace = true

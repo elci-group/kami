@@ -138,7 +138,7 @@ pub fn write_state(store: &mut Store, state: &ProjectState) -> NodeId {
                 ("source", Scalar::String(c.source.clone())),
             ],
             None,
-            provenance(Vec::new()),
+            provenance(c.evidence_ids.clone()),
         );
         store.add_edge(
             project_node,
@@ -226,7 +226,7 @@ pub fn summarize(path: &Path) -> Result<GraphSummary> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use kami_core::{Mission, ProjectState, Strength, Weakness};
+    use kami_core::{Constraint, ConstraintKind, Mission, ProjectState, Strength, Weakness};
 
     fn sample_state() -> ProjectState {
         let mut state = ProjectState::genesis("/tmp/example");
@@ -243,6 +243,13 @@ mod tests {
             description: "1 dependency has a known CVE".to_string(),
             evidence_ids: vec!["ev-2".to_string()],
         });
+        state.constraints.push(Constraint {
+            id: "lwoodz:license-compatibility".to_string(),
+            description: "Must maintain license compatibility".to_string(),
+            kind: ConstraintKind::Hard,
+            source: "lwoodz".to_string(),
+            evidence_ids: vec!["ev-3".to_string()],
+        });
         state
     }
 
@@ -255,17 +262,42 @@ mod tests {
         export_state(&path, &state).unwrap();
         let summary = summarize(&path).unwrap();
 
-        // 1 ProjectState + 1 Mission + 1 Strength + 1 Weakness.
-        assert_eq!(summary.node_count, 4);
-        // has_mission + exhibits(strength) + exhibits(weakness).
-        assert_eq!(summary.edge_count, 3);
+        // 1 ProjectState + 1 Mission + 1 Strength + 1 Weakness + 1 Constraint.
+        assert_eq!(summary.node_count, 5);
+        // has_mission + exhibits(strength) + exhibits(weakness) + has_constraint.
+        assert_eq!(summary.edge_count, 4);
 
         assert_eq!(summary.nodes_by_label.get(NODE_PROJECT_STATE), Some(&1));
         assert_eq!(summary.nodes_by_label.get(NODE_MISSION), Some(&1));
         assert_eq!(summary.nodes_by_label.get(NODE_STRENGTH), Some(&1));
         assert_eq!(summary.nodes_by_label.get(NODE_WEAKNESS), Some(&1));
+        assert_eq!(summary.nodes_by_label.get(NODE_CONSTRAINT), Some(&1));
         assert_eq!(summary.edges_by_label.get(REL_HAS_MISSION), Some(&1));
         assert_eq!(summary.edges_by_label.get(REL_EXHIBITS), Some(&2));
+        assert_eq!(summary.edges_by_label.get(REL_HAS_CONSTRAINT), Some(&1));
+    }
+
+    #[test]
+    fn constraint_kind_and_source_round_trip_through_the_real_on_disk_format() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("graph.pad");
+        export_state(&path, &sample_state()).unwrap();
+
+        let store = Store::load(&path).unwrap();
+        let constraint_node = store
+            .nodes()
+            .values()
+            .find(|n| store.string_table().resolve(n.label.0) == Some(NODE_CONSTRAINT))
+            .unwrap();
+        let get = |key: &str| {
+            constraint_node
+                .properties
+                .iter()
+                .find(|(k, _)| store.string_table().resolve(k.0) == Some(key))
+                .map(|(_, v)| v)
+        };
+        assert_eq!(get("kind"), Some(&Scalar::String("Hard".to_string())));
+        assert_eq!(get("source"), Some(&Scalar::String("lwoodz".to_string())));
     }
 
     #[test]

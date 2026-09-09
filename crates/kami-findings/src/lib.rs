@@ -1,7 +1,8 @@
-//! Deterministic extraction of typed `Strength`/`Weakness` records from
-//! first-loop battery evidence (`kami-battery`), per the directive's
-//! doctrine that core accounting must stay deterministic (§24) even
-//! though no LLM is wired in yet to interpret findings itself.
+//! Deterministic extraction of typed `Strength`/`Weakness`/`Constraint`
+//! records from battery (`kami-battery`, §12) and compliance
+//! (`kami-compliance`, §13) evidence, per the directive's doctrine that
+//! core accounting must stay deterministic (§24) even though no LLM is
+//! wired in yet to interpret findings itself.
 //!
 //! Each extractor here is built and tested against a real, captured
 //! example of that tool's own JSON schema — never a guessed shape. A
@@ -14,7 +15,7 @@
 //! JSON blob to typed records, with no inference step (§24's
 //! deterministic/probabilistic boundary).
 
-use kami_core::{Strength, Weakness};
+use kami_core::{Constraint, Strength, Weakness};
 use serde_json::Value;
 use std::collections::BTreeMap;
 
@@ -22,12 +23,13 @@ use std::collections::BTreeMap;
 pub struct Extraction {
     pub strengths: Vec<Strength>,
     pub weaknesses: Vec<Weakness>,
+    pub constraints: Vec<Constraint>,
 }
 
-/// Extract strengths/weaknesses from one battery tool's evidence data.
-/// `evidence_id` is attached to every record produced so it can be
-/// traced back to the exact evidence it came from (§25). An
-/// unrecognized tool name yields an empty `Extraction`, never a guess.
+/// Extract typed records from one tool's evidence data. `evidence_id` is
+/// attached to every record produced so it can be traced back to the
+/// exact evidence it came from (§25). An unrecognized tool name yields
+/// an empty `Extraction`, never a guess.
 pub fn extract(tool: &str, evidence_id: &str, data: &Value) -> Extraction {
     match tool {
         "amber" => amber::extract(evidence_id, data),
@@ -35,6 +37,8 @@ pub fn extract(tool: &str, evidence_id: &str, data: &Value) -> Extraction {
         "ferret" => ferret::extract(evidence_id, data),
         "fract" => fract::extract(evidence_id, data),
         "wilder" => wilder::extract(evidence_id, data),
+        "isopod" => isopod::extract(evidence_id, data),
+        "lwoodz" => lwoodz::extract(evidence_id, data),
         _ => Extraction::default(),
     }
 }
@@ -77,8 +81,8 @@ mod traci {
             .collect();
 
         Extraction {
-            strengths: Vec::new(),
             weaknesses,
+            ..Default::default()
         }
     }
 }
@@ -133,8 +137,8 @@ mod ferret {
             .collect();
 
         Extraction {
-            strengths: Vec::new(),
             weaknesses,
+            ..Default::default()
         }
     }
 }
@@ -169,11 +173,10 @@ mod fract {
                     ),
                     evidence_ids: vec![evidence_id.to_string()],
                 }],
-                weaknesses: Vec::new(),
+                ..Default::default()
             }
         } else {
             Extraction {
-                strengths: Vec::new(),
                 weaknesses: vec![Weakness {
                     id: "fract:architecture-health".to_string(),
                     description: format!(
@@ -181,6 +184,7 @@ mod fract {
                     ),
                     evidence_ids: vec![evidence_id.to_string()],
                 }],
+                ..Default::default()
             }
         }
     }
@@ -223,7 +227,7 @@ mod amber {
                     ),
                     evidence_ids: vec![evidence_id.to_string()],
                 }],
-                weaknesses: Vec::new(),
+                ..Default::default()
             }
         } else {
             let listing = vulnerable
@@ -232,7 +236,6 @@ mod amber {
                 .collect::<Vec<_>>()
                 .join(", ");
             Extraction {
-                strengths: Vec::new(),
                 weaknesses: vec![Weakness {
                     id: "amber:known-cves".to_string(),
                     description: format!(
@@ -241,6 +244,7 @@ mod amber {
                     ),
                     evidence_ids: vec![evidence_id.to_string()],
                 }],
+                ..Default::default()
             }
         }
     }
@@ -295,8 +299,105 @@ mod wilder {
             .collect();
 
         Extraction {
-            strengths: Vec::new(),
             weaknesses,
+            ..Default::default()
+        }
+    }
+}
+
+mod isopod {
+    use super::*;
+    use kami_core::ConstraintKind;
+
+    /// Real statuses observed in this tool's own `check --json` output:
+    /// "UNKNOWN" (no evidence collected — not this project's fault, so
+    /// not surfaced as a constraint), "FAIL" (an unmet control), and
+    /// presumably "PASS"/"WARNING" (neither seen yet in real output, so
+    /// not specifically handled — only "FAIL" produces a `Constraint`).
+    pub fn extract(evidence_id: &str, data: &Value) -> Extraction {
+        let Some(controls) = data.get("controls").and_then(Value::as_array) else {
+            return Extraction::default();
+        };
+
+        let constraints = controls
+            .iter()
+            .filter(|c| c.get("status").and_then(Value::as_str) == Some("FAIL"))
+            .map(|c| {
+                let id = c.get("id").and_then(Value::as_str).unwrap_or("unknown");
+                let title = c.get("title").and_then(Value::as_str).unwrap_or("");
+                let reason = c.get("reason").and_then(Value::as_str).unwrap_or("");
+                Constraint {
+                    id: format!("isopod:{id}"),
+                    description: format!("Isopod {id} ({title}): {reason}"),
+                    // A failed governance control is a cost/risk to remediate,
+                    // not something that blocks every future mutation outright
+                    // (§13: "Soft compliance concerns may instead become
+                    // development costs or risks").
+                    kind: ConstraintKind::Soft,
+                    source: "isopod".to_string(),
+                    evidence_ids: vec![evidence_id.to_string()],
+                }
+            })
+            .collect();
+
+        Extraction {
+            constraints,
+            ..Default::default()
+        }
+    }
+}
+
+mod lwoodz {
+    use super::*;
+    use kami_core::ConstraintKind;
+
+    /// Shaped from a real `lwoodz --json check` capture:
+    /// `{project_license, issues: [...], total_deps, incompatible_count,
+    /// warning_count}`. The standing licensing obligation is always
+    /// recorded as a `Constraint` (it applies whether or not it's
+    /// currently satisfied); an actual incompatibility additionally
+    /// becomes a `Weakness` describing the live violation.
+    pub fn extract(evidence_id: &str, data: &Value) -> Extraction {
+        let Some(total) = data.get("total_deps").and_then(Value::as_u64) else {
+            return Extraction::default();
+        };
+        let incompatible = data
+            .get("incompatible_count")
+            .and_then(Value::as_u64)
+            .unwrap_or(0);
+        let license = data
+            .get("project_license")
+            .and_then(Value::as_str)
+            .unwrap_or("unknown");
+
+        let constraints = vec![Constraint {
+            id: "lwoodz:license-compatibility".to_string(),
+            description: format!(
+                "Must maintain license compatibility with the declared project license ({license}) across {total} dependencies"
+            ),
+            // A real license incompatibility is a legal blocker, not a
+            // cost to schedule around — unlike a governance-control gap.
+            kind: ConstraintKind::Hard,
+            source: "lwoodz".to_string(),
+            evidence_ids: vec![evidence_id.to_string()],
+        }];
+
+        let weaknesses = if incompatible > 0 {
+            vec![Weakness {
+                id: "lwoodz:incompatible-licenses".to_string(),
+                description: format!(
+                    "Lwoodz: {incompatible} of {total} dependencies have incompatible licenses"
+                ),
+                evidence_ids: vec![evidence_id.to_string()],
+            }]
+        } else {
+            Vec::new()
+        };
+
+        Extraction {
+            constraints,
+            weaknesses,
+            ..Default::default()
         }
     }
 }
@@ -437,6 +538,63 @@ mod tests {
     fn wilder_with_empty_findings_extracts_nothing_at_all() {
         let e = extract("wilder", "ev5", &json!({"findings": []}));
         assert!(e.strengths.is_empty());
+        assert!(e.weaknesses.is_empty());
+    }
+
+    // --- Isopod: shaped from a real `isopod check --json` capture. ---
+
+    #[test]
+    fn isopod_turns_failing_controls_into_soft_constraints_and_ignores_unknown() {
+        use kami_core::ConstraintKind;
+        let data = json!({
+            "controls": [
+                {"id": "ISO27001-A.8.9", "title": "Configuration management", "status": "FAIL", "reason": "Requirement(s) not met: branch_protection"},
+                {"id": "ISO27001-A.8.13", "title": "Information backup", "status": "UNKNOWN", "reason": "No evidence collected"},
+            ]
+        });
+        let e = extract("isopod", "ev6", &data);
+        assert!(e.strengths.is_empty());
+        assert!(e.weaknesses.is_empty());
+        assert_eq!(e.constraints.len(), 1);
+        let c = &e.constraints[0];
+        assert_eq!(c.id, "isopod:ISO27001-A.8.9");
+        assert_eq!(c.kind, ConstraintKind::Soft);
+        assert_eq!(c.source, "isopod");
+        assert_eq!(c.evidence_ids, vec!["ev6".to_string()]);
+    }
+
+    #[test]
+    fn isopod_with_no_failing_controls_extracts_no_constraints() {
+        let data = json!({"controls": [{"id": "X", "title": "Y", "status": "UNKNOWN", "reason": "No evidence collected"}]});
+        let e = extract("isopod", "ev6", &data);
+        assert!(e.constraints.is_empty());
+    }
+
+    // --- Lwoodz: shaped from a real `lwoodz --json check` capture. ---
+
+    #[test]
+    fn lwoodz_always_records_the_licensing_constraint_and_flags_incompatibilities() {
+        use kami_core::ConstraintKind;
+        let data = json!({
+            "project_license": "MIT",
+            "issues": ["some-crate is GPL-3.0"],
+            "total_deps": 10,
+            "incompatible_count": 1,
+            "warning_count": 0,
+        });
+        let e = extract("lwoodz", "ev7", &data);
+        assert_eq!(e.constraints.len(), 1);
+        assert_eq!(e.constraints[0].id, "lwoodz:license-compatibility");
+        assert_eq!(e.constraints[0].kind, ConstraintKind::Hard);
+        assert_eq!(e.weaknesses.len(), 1);
+        assert!(e.weaknesses[0].description.contains("1 of 10"));
+    }
+
+    #[test]
+    fn lwoodz_with_no_incompatibilities_records_the_constraint_but_no_weakness() {
+        let data = json!({"project_license": "MIT", "issues": [], "total_deps": 5, "incompatible_count": 0, "warning_count": 0});
+        let e = extract("lwoodz", "ev7", &data);
+        assert_eq!(e.constraints.len(), 1);
         assert!(e.weaknesses.is_empty());
     }
 }

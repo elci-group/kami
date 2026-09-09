@@ -251,6 +251,53 @@ fn state_build_exports_a_real_padagonia_graph_that_kami_graph_can_read_back() {
 }
 
 #[test]
+fn state_build_runs_compliance_modelling_and_records_a_licensing_constraint() {
+    if which::which("lwoodz").is_err() {
+        eprintln!("skipping: lwoodz not on PATH");
+        return;
+    }
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join("Cargo.toml"),
+        "[package]\nname = \"fixture\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+    )
+    .unwrap();
+    std::fs::create_dir(dir.path().join("src")).unwrap();
+    std::fs::write(dir.path().join("src").join("main.rs"), "fn main() {}\n").unwrap();
+
+    let output = kami()
+        .args([
+            "--path",
+            dir.path().to_str().unwrap(),
+            "--format",
+            "json",
+            "state",
+            "build",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let value: serde_json::Value = serde_json::from_slice(&output).unwrap();
+
+    let compliance = value["compliance"].as_array().unwrap();
+    let tools: Vec<&str> = compliance
+        .iter()
+        .filter_map(|p| p["tool"].as_str())
+        .collect();
+    assert_eq!(tools, vec!["isopod", "lwoodz"]);
+
+    let constraints = value["state"]["constraints"].as_array().unwrap();
+    assert!(
+        constraints
+            .iter()
+            .any(|c| c["id"] == "lwoodz:license-compatibility"),
+        "expected a lwoodz license-compatibility constraint, got: {constraints:?}"
+    );
+}
+
+#[test]
 fn graph_without_a_prior_state_build_fails_clearly() {
     let dir = tempfile::tempdir().unwrap();
     kami()

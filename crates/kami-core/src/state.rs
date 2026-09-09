@@ -89,6 +89,10 @@ pub struct Constraint {
     /// subsystem, a prior mutation's side effect) — constraints are
     /// first-class ontology objects, not prompt text (§4).
     pub source: String,
+    /// Traceable to the evidence that established this constraint (§25) —
+    /// e.g. the Isopod/Lwoodz compliance-check evidence it came from.
+    #[serde(default)]
+    pub evidence_ids: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

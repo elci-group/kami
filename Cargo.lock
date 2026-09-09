@@ -1239,6 +1239,7 @@ dependencies = [
  "assert_cmd",
  "clap",
  "kami-battery",
+ "kami-compliance",
  "kami-core",
  "kami-elci",
  "kami-evidence",
@@ -1248,6 +1249,19 @@ dependencies = [
  "predicates",
  "serde_json",
  "tempfile",
+ "which",
+]
+
+[[package]]
+name = "kami-compliance"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "kami-core",
+ "kami-elci",
+ "serde_json",
+ "tempfile",
+ "which",
 ]
 
 [[package]]

@@ -158,27 +158,8 @@ fn render_state_list(v: &serde_json::Value) -> String {
 
 fn render_state_build(v: &serde_json::Value) -> String {
     let mut out = render_state_one(v);
-    if let Some(passes) = v["battery"].as_array() {
-        out.push_str("\nfirst-loop battery (§12):");
-        for p in passes {
-            let outcome = p["outcome"].as_str().unwrap_or("?");
-            let mark = match outcome {
-                "evidence" => "EVIDENCE",
-                "unavailable" => "UNAVAILABLE",
-                "not_applicable" => "NOT_APPLICABLE",
-                "invocation_failed" => "INVOCATION_FAILED",
-                other => other,
-            };
-            out.push_str(&format!(
-                "\n  {:<10} [{}]",
-                p["tool"].as_str().unwrap_or("?"),
-                mark
-            ));
-            if let Some(detail) = p["detail"].as_str() {
-                out.push_str(&format!(" — {detail}"));
-            }
-        }
-    }
+    render_pass_list(&mut out, "first-loop battery (§12)", &v["battery"]);
+    render_pass_list(&mut out, "compliance modelling (§13)", &v["compliance"]);
     if v["padagonia"]["exported"].as_bool() == Some(true) {
         out.push_str(&format!(
             "\npadagonia graph: {}",
@@ -188,6 +169,31 @@ fn render_state_build(v: &serde_json::Value) -> String {
         out.push_str(&format!("\npadagonia graph export failed: {err}"));
     }
     out
+}
+
+fn render_pass_list(out: &mut String, label: &str, passes: &serde_json::Value) {
+    let Some(passes) = passes.as_array() else {
+        return;
+    };
+    out.push_str(&format!("\n{label}:"));
+    for p in passes {
+        let outcome = p["outcome"].as_str().unwrap_or("?");
+        let mark = match outcome {
+            "evidence" => "EVIDENCE",
+            "unavailable" => "UNAVAILABLE",
+            "not_applicable" => "NOT_APPLICABLE",
+            "invocation_failed" => "INVOCATION_FAILED",
+            other => other,
+        };
+        out.push_str(&format!(
+            "\n  {:<10} [{}]",
+            p["tool"].as_str().unwrap_or("?"),
+            mark
+        ));
+        if let Some(detail) = p["detail"].as_str() {
+            out.push_str(&format!(" — {detail}"));
+        }
+    }
 }
 
 fn render_graph(v: &serde_json::Value) -> String {
@@ -216,17 +222,17 @@ fn render_state_one(v: &serde_json::Value) -> String {
     let s = &v["state"];
     let mission = s["mission"]["statement"].as_str().unwrap_or("(none)");
     let mut out = format!(
-        "{} ({})\nproject_root: {}\nmission: {}\nconstraints: {}, capabilities: {}, evidence: {}",
+        "{} ({})\nproject_root: {}\nmission: {}\ncapabilities: {}, evidence: {}",
         s["id"].as_str().unwrap_or("?"),
         s["kind"].as_str().unwrap_or("?"),
         s["project_root"].as_str().unwrap_or("?"),
         mission,
-        s["constraints"].as_array().map(|a| a.len()).unwrap_or(0),
         s["capabilities"].as_array().map(|a| a.len()).unwrap_or(0),
         s["evidence_ids"].as_array().map(|a| a.len()).unwrap_or(0),
     );
     render_findings_list(&mut out, "strengths", &s["strengths"]);
     render_findings_list(&mut out, "weaknesses", &s["weaknesses"]);
+    render_findings_list(&mut out, "constraints", &s["constraints"]);
     out
 }
 
