@@ -26,7 +26,11 @@ r = 0.15
 
 [version_thresholds]
 minor = 0.6    # score at or above this bumps Minor
-patch = 0.1    # score at or above this bumps Patch; below it, no commit
+# 0.0 (matching the sibling `bart` project's proven-working config): a
+# config/doc-only change scoring near-zero still gets a real Patch bump
+# and commit rather than falling into the "chore_commit" path, which
+# this session confirmed never triggers `[push]` even with it enabled.
+patch = 0.0
 
 [push]
 enabled = true
