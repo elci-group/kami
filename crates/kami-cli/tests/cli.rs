@@ -29,6 +29,72 @@ fn inspect_reports_real_measured_size() {
 }
 
 #[test]
+fn inspect_projects_growth_from_real_git_history() {
+    let dir = tempfile::tempdir().unwrap();
+    let git = |args: &[&str], env: &[(&str, &str)]| {
+        let mut cmd = std::process::Command::new("git");
+        cmd.args(args).current_dir(dir.path());
+        for (k, v) in env {
+            cmd.env(k, v);
+        }
+        assert!(cmd.status().unwrap().success());
+    };
+    git(&["init", "-q"], &[]);
+    git(&["config", "user.email", "test@example.com"], &[]);
+    git(&["config", "user.name", "Test"], &[]);
+
+    std::fs::write(dir.path().join("main.rs"), "fn main() {}\n").unwrap();
+    git(&["add", "."], &[]);
+    git(
+        &["commit", "-q", "-m", "first"],
+        &[
+            ("GIT_AUTHOR_DATE", "@1000000000 +0000"),
+            ("GIT_COMMITTER_DATE", "@1000000000 +0000"),
+        ],
+    );
+
+    std::fs::write(dir.path().join("main.rs"), "fn main() {}\nfn helper() {}\n").unwrap();
+    git(&["add", "."], &[]);
+    git(
+        &["commit", "-q", "-m", "second"],
+        &[
+            ("GIT_AUTHOR_DATE", "@1000864000 +0000"),
+            ("GIT_COMMITTER_DATE", "@1000864000 +0000"),
+        ],
+    );
+
+    kami()
+        .args(["--path", dir.path().to_str().unwrap(), "inspect"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("growth projection (+30"));
+}
+
+#[test]
+fn inspect_with_no_git_history_reports_no_growth_projection() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(dir.path().join("main.rs"), "fn main() {}\n").unwrap();
+
+    kami()
+        .args(["--path", dir.path().to_str().unwrap(), "inspect"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("growth projection (+").not())
+        .stdout(predicate::str::contains("not a git repository"));
+    kami()
+        .args([
+            "--path",
+            dir.path().to_str().unwrap(),
+            "--format",
+            "json",
+            "inspect",
+        ])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("\"growth\": null"));
+}
+
+#[test]
 fn status_lists_elci_adapters_as_json() {
     let dir = tempfile::tempdir().unwrap();
     let output = kami()

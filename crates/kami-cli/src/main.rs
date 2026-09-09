@@ -118,6 +118,24 @@ fn render_inspect(v: &serde_json::Value) -> String {
             }
         }
     }
+    if size["growth"].is_object() {
+        let g = &size["growth"];
+        out.push_str(&format!(
+            "\ngrowth projection (+{} days): {} LOC (range {}-{}, confidence {:.2})",
+            g["horizon_days"],
+            g["projected_loc"],
+            g["lower_bound_loc"],
+            g["upper_bound_loc"],
+            g["confidence"]
+        ));
+        if let Some(assumptions) = g["assumptions"].as_array() {
+            for a in assumptions {
+                if let Some(s) = a.as_str() {
+                    out.push_str(&format!("\ngrowth assumption: {s}"));
+                }
+            }
+        }
+    }
     out
 }
 

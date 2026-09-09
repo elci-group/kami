@@ -21,4 +21,29 @@ pub struct ProjectSize {
     /// (permission errors, binary detection false negatives, etc.).
     pub confidence: f64,
     pub assumptions: Vec<String>,
+    /// The §15 deterministic forward projection, derived from real git
+    /// history — `None` when there's no usable history to project from
+    /// (e.g. not a git repo, or fewer than two commits touching
+    /// recognized source files), never a guessed default.
+    #[serde(default)]
+    pub growth: Option<GrowthProjection>,
+}
+
+/// A deterministic LOC forward projection (§15), built from real
+/// historical `git log --numstat` deltas — never LLM intuition.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GrowthProjection {
+    pub horizon_days: f64,
+    pub projected_loc: u64,
+    /// Derived from the smallest/largest single-commit net change
+    /// observed in the history window, not an invented percentage band.
+    pub lower_bound_loc: u64,
+    pub upper_bound_loc: u64,
+    /// 0.0-1.0, a function of how many days of history back the
+    /// observation window — a one-day window (this session's own
+    /// history, for instance) yields a low confidence regardless of
+    /// commit count, since pace over hours doesn't evidence pace over
+    /// weeks. See `kami-sizing::growth` for the exact formula.
+    pub confidence: f64,
+    pub assumptions: Vec<String>,
 }

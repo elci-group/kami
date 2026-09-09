@@ -26,7 +26,7 @@ const IGNORED_DIRS: &[&str] = &[
 /// each. Anything not listed here is excluded from `source_loc` — Kami
 /// must never manufacture a LOC figure for a file type it hasn't
 /// deliberately decided to count (§15).
-fn language_for_extension(ext: &str) -> Option<&'static str> {
+pub(crate) fn language_for_extension(ext: &str) -> Option<&'static str> {
     Some(match ext {
         "rs" => "Rust",
         "py" => "Python",

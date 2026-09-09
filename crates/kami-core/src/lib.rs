@@ -9,7 +9,7 @@ pub mod size;
 pub mod state;
 
 pub use evidence::Evidence;
-pub use size::ProjectSize;
+pub use size::{GrowthProjection, ProjectSize};
 pub use state::{
     Capability, Constraint, ConstraintKind, Mission, ProjectState, StateId, StateKind, Strength,
     Weakness,

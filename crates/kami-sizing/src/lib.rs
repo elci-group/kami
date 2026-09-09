@@ -1,16 +1,21 @@
 //! Deterministic project sizing (§14, §15): storage footprint via the
-//! Bart ELCI adapter, source LOC via an exact in-process count. Both are
-//! measurements of the *current* state — the forward LOC-projection
-//! model in §15 (component/test/doc growth assumptions) is not yet
-//! implemented, and this crate never fabricates one.
+//! Bart ELCI adapter, source LOC via an exact in-process count — both
+//! measurements of the *current* state — plus a forward LOC projection
+//! (§15) derived from real `git log --numstat` history, never LLM
+//! intuition. A project with no usable git history gets `growth: None`,
+//! never a guessed default.
 
 pub mod bart;
+pub mod growth;
 pub mod loc;
 
 use std::path::Path;
 
 use anyhow::Result;
 use kami_core::ProjectSize;
+
+/// How far ahead `size_project`'s growth projection looks by default.
+pub const DEFAULT_GROWTH_HORIZON_DAYS: f64 = 30.0;
 
 pub struct SizingResult {
     pub size: ProjectSize,
@@ -28,7 +33,7 @@ pub fn size_project(root: &Path) -> Result<SizingResult> {
 
     let mut assumptions = vec![
         "source_loc counts only recognized source extensions (see kami-sizing::loc::language_for_extension)".to_string(),
-        "lower_bound_loc/upper_bound_loc equal source_loc: this is a measurement of current LOC, not a forward projection (§15 forward growth modelling is not yet implemented)".to_string(),
+        "lower_bound_loc/upper_bound_loc equal source_loc: this is a measurement of current LOC, not the forward projection — see the separate `growth` field for that (§15)".to_string(),
     ];
     let confidence = if counted.unreadable.is_empty() {
         1.0
@@ -40,6 +45,18 @@ pub fn size_project(root: &Path) -> Result<SizingResult> {
         0.9
     };
 
+    let growth = match growth::measure_growth(root) {
+        growth::GrowthOutcome::History(history) => Some(growth::project(
+            &history,
+            counted.total,
+            DEFAULT_GROWTH_HORIZON_DAYS,
+        )),
+        growth::GrowthOutcome::NoHistory(reason) => {
+            assumptions.push(format!("no growth projection: {reason}"));
+            None
+        }
+    };
+
     let size = ProjectSize {
         storage_bytes: bart.storage_bytes,
         file_count: bart.file_count,
@@ -49,6 +66,7 @@ pub fn size_project(root: &Path) -> Result<SizingResult> {
         upper_bound_loc: counted.total,
         confidence,
         assumptions,
+        growth,
     };
 
     Ok(SizingResult {
