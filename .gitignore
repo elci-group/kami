@@ -2,3 +2,10 @@
 .kami/
 .toon
 .kaptaind/
+.azusa/
+.lwoodz/
+.uni/
+.traci/
+.orb
+*.log
+.env
