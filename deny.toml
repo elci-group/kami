@@ -39,9 +39,8 @@ allow = [
 confidence-threshold = 0.8
 
 [licenses.private]
-# Our own crates are internal ELCI tooling (`publish = false`, license
-# "UNLICENSED" — not a valid SPDX expression) and must not be run through
-# the public-license allow list above.
+# Our own crates are internal ELCI tooling (`publish = false`, MIT
+# licensed) and are not run through the public-license allow list above.
 ignore = true
 
 # ---------------------------------------------------------------------- bans
